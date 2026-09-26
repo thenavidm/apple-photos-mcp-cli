@@ -11,7 +11,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { ALL_TOOLS } from "../src-ts/tools/index.js";
-import { FLAG_ALIASES, SYNONYMS, flagsFor, isCliCommand, parseArgs, whichCommand } from "../src-ts/cli.js";
+import { EXIT, FLAG_ALIASES, SYNONYMS, exitCodeFor, flagsFor, isCliCommand, parseArgs, whichCommand } from "../src-ts/cli.js";
+import { BridgeError, ToolError, WriteBlockedError } from "../src-ts/errors.js";
 import { ok } from "../src-ts/tools/kit.js";
 import { loadConfig } from "../src-ts/config.js";
 
@@ -113,5 +114,26 @@ describe("engine invocation", () => {
     const config = loadConfig();
     expect(config.startupTimeoutMs).toBeGreaterThan(60_000);
     expect(config.requestTimeoutMs).toBeGreaterThan(60_000);
+  });
+});
+
+describe("exit codes follow the house contract", () => {
+  it("a refused write or too many items is 2", () => {
+    expect(exitCodeFor(new WriteBlockedError("archive_photos is unavailable: this server is running with APPLE_PHOTOS_READ_ONLY=1."))).toBe(EXIT.usage);
+    expect(exitCodeFor(new ToolError("150 items requested; this server allows at most 100"))).toBe(EXIT.usage);
+  });
+
+  it("nothing resolving is 3", () => {
+    expect(exitCodeFor(new ToolError("none of those refs resolved"))).toBe(EXIT.notFound);
+  });
+
+  it("macOS refusing access is 4", () => {
+    expect(exitCodeFor(new ToolError("[Errno 1] Operation not permitted: '/Users/x/Pictures/Photos Library.photoslibrary/database/Photos.sqlite'"))).toBe(EXIT.auth);
+    expect(exitCodeFor(new ToolError("Not authorized to send Apple events to Photos. (-1743)"))).toBe(EXIT.auth);
+  });
+
+  it("an engine that never started is 10, one that failed mid-call is 5", () => {
+    expect(exitCodeFor(new BridgeError("Could not start the Photos engine with `uvx ...`."))).toBe(EXIT.config);
+    expect(exitCodeFor(new BridgeError("The Photos engine failed while running search_photos."))).toBe(EXIT.api);
   });
 });

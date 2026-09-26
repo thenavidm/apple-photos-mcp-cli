@@ -12,6 +12,12 @@
 | Node (TypeScript surface) | 20+ | 2026-09-02 |
 | `@modelcontextprotocol/sdk` | 1.x | 2026-09-02 |
 
+## 1.1.0, 2026-09-26
+
+- Exit codes follow the house contract, so a script branches the same way on every one of these CLIs: 0 ok, 2 typed wrong or a refused write, 3 not found, 4 macOS refused access (Full Disk Access, or Automation for Photos), 5 the engine or Photos failed, 10 the engine could not start. Before, everything that was not a typing mistake exited 1.
+- SKILL.md carries the exit-code table.
+- Releases come from `publish.yml` on a tag. The Claude Desktop extension is attached to each release.
+
 ## 1.0.4, 2026-09-03
 
 Fixes found by a full review of the TypeScript surface.

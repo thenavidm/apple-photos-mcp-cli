@@ -16,3 +16,4 @@ dist/
 lib/
 *.tsbuildinfo
 desktop-extension/build/
+desktop-extension/*.mcpb

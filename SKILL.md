@@ -152,6 +152,19 @@ photo_info(refs=[...])   # everything about specific items, including OCR text
 doctor()                 # run this first whenever anything misbehaves
 ```
 
+## Exit codes
+
+A script branches on the number, not the message:
+
+| Code | Means |
+|---|---|
+| 0 | it worked |
+| 2 | typed wrong, or a write was refused: a missing flag, a bad value, no `--confirm`, or read only |
+| 3 | a photo or album was not found |
+| 4 | macOS refused access: Full Disk Access, or Automation for Photos |
+| 5 | the engine or Photos failed |
+| 10 | the engine could not start: install uv, or set `APPLE_PHOTOS_PYTHON` |
+
 ## When something breaks
 
 | Symptom | Cause | Fix |

@@ -95,8 +95,11 @@ Results on stdout, errors on stderr as JSON, so one parse handles both.
 | Code | Means |
 |---|---|
 | `0` | it worked |
-| `1` | it failed: the engine refused, a guard blocked it, nothing matched |
-| `2` | it was typed wrong: a missing flag, a bad value, an unknown option |
+| `2` | it was typed wrong, or a write was refused: a missing flag, a bad value, no `--confirm`, or read only |
+| `3` | a photo or album wasn't found |
+| `4` | macOS refused access: Full Disk Access, or Automation for Photos |
+| `5` | the engine or Photos failed |
+| `10` | the engine could not start: install uv, or set `APPLE_PHOTOS_PYTHON` |
 
 ## Which surface, and what each costs
 

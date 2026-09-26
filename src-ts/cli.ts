@@ -513,6 +513,36 @@ export function whichCommand(query: string): { tool: AnyToolSpec; score: number 
     .slice(0, 5);
 }
 
+/* -------------------------------------------------------------- exit codes */
+
+/**
+ * The house contract, so a script branches on the number the same way for
+ * every one of these CLIs: 0 ok, 2 usage or a refused write, 3 not found,
+ * 4 access refused, 5 the engine failed, 10 nothing set up yet.
+ */
+export const EXIT = {
+  ok: 0, usage: 2, notFound: 3, auth: 4, api: 5, rateLimited: 7, config: 10,
+} as const;
+
+/**
+ * There is no account here, so "auth" is macOS refusing access: Full Disk
+ * Access for the library, or Automation for Photos itself. The engine reports
+ * its failures as text, so its words decide once the class has said what it
+ * can.
+ */
+export function exitCodeFor(error: unknown): number {
+  const name = (error as Error)?.name;
+  const text = String((error as Error)?.message ?? "").toLowerCase();
+  if (name === "WriteBlockedError") return EXIT.usage;
+  // The engine never started: uv or Python is missing, which is setup, not a
+  // failure of the library.
+  if (name === "BridgeError" && /could not start/.test(text)) return EXIT.config;
+  if (/operation not permitted|permission denied|not authori[sz]ed|full disk access|-1743/.test(text)) return EXIT.auth;
+  if (/at most|too many/.test(text)) return EXIT.usage;
+  if (/not found|none of those refs resolved|no such/.test(text)) return EXIT.notFound;
+  return EXIT.api;
+}
+
 /* ---------------------------------------------------------------- dispatch */
 
 /** The tools this process exposes, with READ_ONLY applied exactly as the server applies it. */
@@ -649,7 +679,7 @@ export async function runCli(argv: string[]): Promise<number> {
   } catch (error) {
     if (error instanceof UsageError) {
       emitError(error);
-      return 2;
+      return EXIT.usage;
     }
     if (error instanceof z.ZodError) {
       const first = error.issues[0];
@@ -660,10 +690,10 @@ export async function runCli(argv: string[]): Promise<number> {
             : error.message,
         ),
       );
-      return 2;
+      return EXIT.usage;
     }
     emitError(error);
-    return 1;
+    return exitCodeFor(error);
   } finally {
     void client?.close();
   }

@@ -16,6 +16,19 @@ VERSION="$(node -p "require('./package.json').version")"
 OUT="desktop-extension/apple-photos-${VERSION}.mcpb"
 BUILD="desktop-extension/build"
 
+# The manifest version has to track package.json, or Claude Desktop reports one
+# number while the server answers another.
+node -e "
+  const fs = require('fs');
+  const p = 'desktop-extension/manifest.json';
+  const m = JSON.parse(fs.readFileSync(p, 'utf8'));
+  if (m.version !== '$VERSION') {
+    m.version = '$VERSION';
+    fs.writeFileSync(p, JSON.stringify(m, null, 2) + '\n');
+    console.log('manifest version -> $VERSION');
+  }
+"
+
 npm run build
 
 rm -rf "$BUILD"
