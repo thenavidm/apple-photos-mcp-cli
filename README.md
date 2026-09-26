@@ -8,7 +8,7 @@
 [![X](https://img.shields.io/badge/X-@thenavidm-black?logo=x)](https://x.com/thenavidm)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-thenavidm-0A66C2?logo=linkedin&logoColor=white)](https://linkedin.com/in/thenavidm)
 
-Apple Photos MCP server and CLI for Claude Code and AI agents. 13 tools to search, look at, organise and export your own library, entirely on your Mac.
+Apple Photos MCP server and CLI for Claude Code, Codex and AI agents. 13 tools to search, look at, organise and export your own library, entirely on your Mac.
 
 Give any AI agent real access to your own Apple Photos library, so it can find, see, organise and export your photos instead of guessing.
 
@@ -455,6 +455,20 @@ Run `doctor` before guessing. It names which of these it is.
 <summary><b>What is an MCP server?</b></summary>
 
 A standard way to give an AI assistant real access to a tool, so it can act rather than guess. You install it once, your assistant gains a set of tools, and it works the same in Claude, Cursor, Codex and anything else that speaks MCP.
+
+</details>
+
+<details>
+<summary><b>What is the CLI?</b></summary>
+
+`apple-photos-cli` is the same program as the MCP server, run as commands. AI agents that run commands, like Claude Code, Codex and OpenCode, use it on their own, and you can type the same commands in a terminal, a script or a cron job. Every tool is a command with dashes, so `search_photos` runs as `apple-photos-cli search-photos`.
+
+</details>
+
+<details>
+<summary><b>Should I use the MCP server or the CLI?</b></summary>
+
+Use the MCP server in an app with no terminal, like Claude Desktop's chat. Use the CLI anywhere commands run: an agent like Claude Code, Codex or OpenCode, a script or a cron job. The MCP server sends its full tool list to the model on every turn, and the CLI costs nothing until it runs.
 
 </details>
 
