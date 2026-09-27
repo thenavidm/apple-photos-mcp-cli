@@ -103,11 +103,32 @@ Results on stdout, errors on stderr as JSON, so one parse handles both.
 
 ## Which surface, and what each costs
 
-An MCP server is charged on every turn; a CLI costs nothing until it is called.
+Both surfaces are the same program with the same 13 tools. The
+difference is when the model pays for them. Measured in Claude Code:
 
-The `tools/list` payload for these 13 tools is about **2,800 tokens**, plus the
-server instructions, on every turn of every conversation whether you use it or
-not. The CLI is free until you run something, which is why both exist.
+| | MCP server | CLI |
+|---|---|---|
+| Every message, with every tool loaded | 3,800 tokens | nothing |
+| Every message, Claude Code's default | 660 tokens | nothing |
+| When Apple Photos comes up | nothing more, or the tools it picks | 2,500 tokens for `SKILL.md`, once |
+| 20 messages with Apple Photos in 1, every tool loaded | 77,000 tokens | 2,500 tokens |
+
+Claude Code's [tool search](https://code.claude.com/docs/en/mcp#scale-with-mcp-tool-search)
+is on by default: it sends only the tool names and the server instructions,
+and loads a tool's full definition when the model reaches for it. An app that
+loads every tool up front pays the first line on every message, whether
+Apple Photos comes up or not. With the skill added, Claude Code also lists its
+one-line description, about 180 tokens.
+
+To spend less, turn the server off when you are not using it, which in Claude
+Code is the `/mcp` panel. `APPLE_PHOTOS_READ_ONLY=1` takes the 6 write tools off the list, leaving 7.
+Or install the CLI and add the server on the days it earns its place.
+
+Measured on 2026-09-27 with Claude Code 2.1.257 on Claude Opus 5: one
+short prompt with and without the server connected, once with
+`ENABLE_TOOL_SEARCH=false` and once with the default, the difference read
+from the API's own usage figures. `SKILL.md` was measured the same way. Other
+apps and models count tokens a little differently.
 
 ## Contents
 
@@ -471,7 +492,7 @@ A standard way to give an AI assistant real access to a tool, so it can act rath
 <details>
 <summary><b>Should I use the MCP server or the CLI?</b></summary>
 
-Use the MCP server in an app with no terminal, like Claude Desktop's chat. Use the CLI anywhere commands run: an agent like Claude Code, Codex or OpenCode, a script or a cron job. The MCP server sends its full tool list to the model on every turn, and the CLI costs nothing until it runs.
+Use the MCP server in an app with no terminal, like Claude Desktop's chat. Use the CLI anywhere commands run: an agent like Claude Code, Codex or OpenCode, a script or a cron job. The MCP server's tools take up context on every message, and the CLI costs nothing until it runs.
 
 </details>
 
