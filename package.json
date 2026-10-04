@@ -1,12 +1,13 @@
 {
   "name": "@thenavidm/apple-photos-mcp-cli",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Apple Photos MCP server and CLI for Claude Code and AI agents. 13 tools to search, look at, organise and export your own Photos library, entirely on your Mac.",
   "type": "module",
   "main": "./lib/index.js",
   "bin": {
     "apple-photos-mcp": "lib/index.js",
-    "apple-photos-cli": "lib/index.js"
+    "apple-photos-cli": "lib/index.js",
+    "apple-photos-mcp-cli": "lib/npx.js"
   },
   "engines": {
     "node": ">=20"
