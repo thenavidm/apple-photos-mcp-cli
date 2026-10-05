@@ -26,6 +26,7 @@ piping and one-off questions, and costs no context until it is called.
 apple-photos-cli library-stats --json
 apple-photos-cli search-photos "sunset" --limit 5 --screenshots exclude
 apple-photos-cli photo-info --refs IMG_2073.MOV
+apple-photos-cli which <words>
 apple-photos-cli <command> --help
 ```
 
@@ -61,8 +62,6 @@ into the library. That is the index:
 | Faces | Only people the user has actually named in Photos |
 | Albums, keywords, titles | Only what the user typed themselves |
 
-Two consequences worth internalizing.
-
 **The visual vocabulary is closed.** Apple knows "Sunset" but not "golden hour",
 "Crowd" but not "keynote", "Dog" but not "goofy". If a result comes back with
 `unmatched_terms`, that word does not exist in this library and rephrasing the
@@ -97,9 +96,8 @@ Useful habits:
 look_at_photos(refs=["<uuid>", "<uuid>", "<uuid>"])
 ```
 
-This works even when the photo lives only in iCloud, because it reads the
-thumbnail Apple already stored on this Mac rather than downloading the original.
-It is fast, so use it freely.
+This works even for iCloud-only photos: it reads the thumbnail already on this
+Mac, so it is fast. Use it freely.
 
 Up to eight items render per call. Ask for a bigger `size` only when fine detail
 matters, such as reading text off a receipt.
@@ -125,9 +123,9 @@ Each of those is one click to undo in Photos, so none of them ask first.
 archive_photos(refs=[...], confirm=True)
 ```
 
-`archive_photos` is the only tool that requires `confirm: true`. Call it without
-confirm to see what it would do, then again with confirm once the user has
-actually asked for those specific items to go.
+`archive_photos` is the only tool that needs confirming: the user approves it
+over MCP, or `confirm: true` where the app cannot ask, and `--confirm` on the
+CLI. Call it only once the user has asked for those specific items to go.
 
 **Nothing deletes.** macOS does not let any app delete photos by script. This
 moves items into an album for the user to empty by hand. Always say so rather
@@ -149,7 +147,7 @@ wants to see a photo, look at it instead.
 library_stats()          # totals, albums, named people, how much is in iCloud
 list_vocabulary()        # the visual words this library knows
 photo_info(refs=[...])   # everything about specific items, including OCR text
-doctor()                 # run this first whenever anything misbehaves
+doctor()                 # run this first whenever anything misbehaves; apple-photos-cli doctor
 ```
 
 ## Exit codes
@@ -159,6 +157,7 @@ A script branches on the number, not the message:
 | Code | Means |
 |---|---|
 | 0 | it worked |
+| 1 | something unexpected went wrong |
 | 2 | typed wrong, or a write was refused: a missing flag, a bad value, no `--confirm`, or read only |
 | 3 | a photo or album was not found |
 | 4 | macOS refused access: Full Disk Access, or Automation for Photos |
@@ -170,7 +169,6 @@ A script branches on the number, not the message:
 | Symptom | Cause | Fix |
 |---|---|---|
 | Permission denied on the library | No Full Disk Access | System Settings, Privacy & Security, Full Disk Access. Add the app running the server, then fully quit and reopen it. |
-| Write tools are missing entirely | `APPLE_PHOTOS_READ_ONLY=1` is set | Unset it and restart the client |
 | A write fails but reads work | Photos automation not allowed | Approve the one-time popup, or System Settings, Privacy & Security, Automation |
 | No preview for one photo | iCloud-only with no cached thumbnail | Open it once in Photos, or export it |
 | Library not found | Photos has never run, or a non-default library | Set `APPLE_PHOTOS_LIBRARY` to the .photoslibrary path |

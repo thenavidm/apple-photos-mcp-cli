@@ -16,34 +16,19 @@ export type Config = {
   /** Per-call deadline. Exports pull originals out of iCloud, so it is generous. */
   requestTimeoutMs: number;
   pythonEnv: Record<string, string>;
-  readOnly: boolean;
-  allowDestructive: boolean;
-  auditPath?: string;
   exportDir?: string;
 };
 
-/**
- * An allowlist, matching the engine's own `_flag()`.
- *
- * A denylist made `APPLE_PHOTOS_READ_ONLY=enabled` mean read-only here and
- * read-write in Python. Both sides now agree on what true looks like.
- */
-function bool(name: string, fallback: boolean): boolean {
-  const raw = process.env[name];
-  if (raw === undefined || raw.trim() === "") return fallback;
-  return ["1", "true", "yes", "on"].includes(raw.trim().toLowerCase());
-}
-
-function int(name: string, fallback: number, min: number, max: number): number {
-  const raw = process.env[name];
+function int(env: NodeJS.ProcessEnv, name: string, fallback: number, min: number, max: number): number {
+  const raw = env[name];
   if (raw === undefined || raw.trim() === "") return fallback;
   const value = Number(raw);
   if (!Number.isFinite(value)) return fallback;
   return Math.min(Math.max(Math.trunc(value), min), max);
 }
 
-function str(name: string): string | undefined {
-  const raw = process.env[name];
+function str(env: NodeJS.ProcessEnv, name: string): string | undefined {
+  const raw = env[name];
   return raw && raw.trim() ? raw.trim() : undefined;
 }
 
@@ -60,10 +45,15 @@ function packagedEnginePath(): string {
   return fileURLToPath(new URL("../src", import.meta.url));
 }
 
-export function loadConfig(): Config {
+/**
+ * The settings, read from `env`. Read-only mode, the switch for archiving and
+ * the audit log are Slipway's now; the engine reads the same variables itself,
+ * from the environment it inherits, and keeps its own guard.
+ */
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   // `uv run --with ...` needs no virtualenv and caches after the first run, so
   // a reader with only Node installed still gets a working server.
-  const explicit = str("APPLE_PHOTOS_PYTHON");
+  const explicit = str(env, "APPLE_PHOTOS_PYTHON");
   const pythonCommand = explicit ?? "uv";
   const pythonArgs = explicit
     ? ["-m", "apple_photos_mcp"]
@@ -76,13 +66,14 @@ export function loadConfig(): Config {
   return {
     pythonCommand,
     pythonArgs,
-    startupTimeoutMs: int("APPLE_PHOTOS_STARTUP_TIMEOUT_MS", 300_000, 10_000, 1_800_000),
-    requestTimeoutMs: int("APPLE_PHOTOS_REQUEST_TIMEOUT_MS", 300_000, 5_000, 1_800_000),
-    pythonEnv: { PYTHONPATH: str("APPLE_PHOTOS_PYTHONPATH") ?? packagedEnginePath() },
-    readOnly: bool("APPLE_PHOTOS_READ_ONLY", false),
-    allowDestructive: bool("APPLE_PHOTOS_ALLOW_DESTRUCTIVE", true),
-    auditPath: str("APPLE_PHOTOS_AUDIT_LOG"),
-    exportDir: str("APPLE_PHOTOS_EXPORT_DIR"),
+    startupTimeoutMs: int(env, "APPLE_PHOTOS_STARTUP_TIMEOUT_MS", 300_000, 10_000, 1_800_000),
+    requestTimeoutMs: int(env, "APPLE_PHOTOS_REQUEST_TIMEOUT_MS", 300_000, 5_000, 1_800_000),
+    // The engine inherits this environment, so it reads the same settings, plus where its package is.
+    pythonEnv: {
+      ...(Object.fromEntries(Object.entries(env).filter(([, value]) => value !== undefined)) as Record<string, string>),
+      PYTHONPATH: str(env, "APPLE_PHOTOS_PYTHONPATH") ?? packagedEnginePath(),
+    },
+    exportDir: str(env, "APPLE_PHOTOS_EXPORT_DIR"),
   };
 }
 

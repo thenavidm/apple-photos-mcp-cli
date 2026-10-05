@@ -20,5 +20,3 @@ export class BridgeError extends PhotosError {}
 /** The engine ran but refused the request. */
 export class ToolError extends PhotosError {}
 
-/** Writes are off, or a destructive tool was called without confirmation. */
-export class WriteBlockedError extends PhotosError {}

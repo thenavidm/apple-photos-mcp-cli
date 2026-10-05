@@ -11,10 +11,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { cli } from "@thenavidm/slipway/testing";
 
-import { ALL_TOOLS } from "../src-ts/tools/index.js";
-import { flagsFor, isCliCommand, parseArgs } from "../src-ts/cli.js";
-import { needsConfirm } from "../src-ts/safety.js";
+import { app } from "../src-ts/app.js";
+import { ALL_TOOLS, TOOLS } from "../src-ts/tools/index.js";
 
 const root = join(import.meta.dirname, "..");
 const python = readFileSync(join(root, "src", "apple_photos_mcp", "server.py"), "utf8");
@@ -32,55 +32,26 @@ describe("TypeScript and Python agree", () => {
     expect([...ALL_TOOLS.map((t) => t.python ?? t.name)].sort()).toEqual(pythonTools().sort());
   });
 
-  it("has no tool the engine cannot run", () => {
-    const engine = new Set(pythonTools());
-    for (const tool of ALL_TOOLS) {
-      expect(engine.has(tool.python ?? tool.name), `${tool.name} is not implemented in Python`).toBe(true);
-    }
+  it("serves every declared tool, under the same name", () => {
+    expect(TOOLS.map((tool) => tool.name)).toEqual(ALL_TOOLS.map((spec) => spec.name));
   });
 });
 
 describe("every tool is a command", () => {
-  it("routes in both spellings", () => {
-    for (const tool of ALL_TOOLS) {
-      expect(isCliCommand([tool.name.replace(/_/g, "-")]), tool.name).toBe(true);
-      expect(isCliCommand([tool.name]), tool.name).toBe(true);
-    }
+  it("lists all thirteen, the engine's doctor as check-setup, since doctor is the CLI's own", async () => {
+    const context = JSON.parse((await cli(app, ["agent-context", "--brief"], { env: {} })).stdout);
+    const commands = (context.commands as Array<{ command: string }>).map((c) => c.command);
+    expect(commands).toHaveLength(13);
+    expect(commands).toContain("check-setup");
+    expect(commands).not.toContain("doctor");
   });
 
-  it("gives every schema key a flag, and describes it", () => {
-    for (const tool of ALL_TOOLS) {
-      const flags = flagsFor(tool.schema);
-      expect(flags.map((f) => f.key).sort(), tool.name).toEqual(Object.keys(tool.schema).sort());
-      for (const flag of flags) {
-        expect(flag.help.length, `${tool.name}.${flag.key} has no description`).toBeGreaterThan(0);
+  it("gives every schema key a flag in the command's help", async () => {
+    for (const tool of TOOLS) {
+      const help = (await cli(app, [tool.command, "--help"], { env: {} })).stdout;
+      for (const key of Object.keys((tool.jsonSchema.properties as Record<string, unknown>) ?? {})) {
+        expect(help, `${tool.command} --help has no --${key.replace(/_/g, "-")}`).toContain(`--${key.replace(/_/g, "-")}`);
       }
     }
-  });
-});
-
-describe("safety", () => {
-  it("asks for confirmation only where it cannot be undone", () => {
-    for (const tool of ALL_TOOLS) {
-      const hasConfirm = Object.keys(tool.schema).includes("confirm");
-      expect(hasConfirm, `${tool.name}`).toBe(needsConfirm(tool.risk));
-    }
-  });
-
-  it("marks only archiving destructive", () => {
-    const destructive = ALL_TOOLS.filter((t) => t.risk === "destructive").map((t) => t.name);
-    expect(destructive).toEqual(["archive_photos"]);
-  });
-});
-
-describe("positional arguments", () => {
-  const flags = flagsFor({ ...ALL_TOOLS.find((t) => t.name === "search_photos")!.schema });
-
-  /**
-   * `search-photos "sunset"` refused the bare word, because the positional only
-   * filled a *required* flag and every search argument is optional.
-   */
-  it("fills the first waiting flag even when nothing is required", () => {
-    expect(parseArgs(["sunset"], flags).query).toBe("sunset");
   });
 });

@@ -9,8 +9,28 @@
 | `photoscript` | 0.3.x | 2026-09-01 |
 | Photos library schema | DB 5001, model 19607, Photos 11.1 | 2026-09-01 |
 | Python | 3.11, 3.12, 3.13 | 2026-09-01 |
-| Node (TypeScript surface) | 20+ | 2026-09-02 |
-| `@modelcontextprotocol/sdk` | 1.x | 2026-09-02 |
+| Node (TypeScript surface) | 22+ | 2026-10-05 |
+| `@thenavidm/slipway` | 0.1.24 | 2026-10-05 |
+
+## 2.0.0, 2026-10-05
+
+The TypeScript surface is built on [Slipway](https://github.com/thenavidm/slipway) 0.1.24; the Python engine is unchanged. The 13 tools keep their names and arguments, and `ALL_TOOLS` keeps the shape the HQ connector imports. Every difference below was measured against 1.1.1, the last version on npm, with an empty home folder and an engine that cannot start, so no measurement read the library.
+
+- **`<command> --help` shows that command.** In 1.1.1 it printed the general help, so an agent looking for a command's flags tried `schema`, `help <command>`, `-h` and the bare command in turn. In Codex 0.159.3, finding the command that exports original files to a folder, and its flags, took a median of 53,232 input tokens over the CLI instead of 191,767 (five runs each): two commands in every 2.0.0 run, seven to ten in every 1.1.1 run.
+- **A person approves an archive over MCP.** `archive_photos` still needs confirmation. Claude Code (2.1.246 and later) shows its own prompt, and a client that can show forms asks with an approval form whose one box starts unticked. Where a client can do neither, the model's `confirm: true` still counts, and `APPLE_PHOTOS_CONFIRM=model` makes it enough everywhere. The refusal keeps 1.1.1's words, "archive_photos cannot be undone from here", and the engine is told the call is confirmed only once it is.
+- **`doctor` is the CLI's own,** and runs the engine's checks: macOS, Python, Full Disk Access, the library and its index, one line each, exiting 1 when one fails. The `doctor` tool keeps its name over MCP; on the CLI it is `check-setup`, since `doctor` is taken.
+- **A smaller tool list.** Each tool no longer repeats `$schema` or an `execution` block saying it runs no background tasks, so the list is 2,586 o200k tokens instead of 3,016, and Claude Code 2.1.286 spends 3,402 tokens a message on it with every tool loaded instead of 3,843.
+- **Less to install and start.** npx installs four packages instead of 94: the bridge to the Python engine now speaks MCP itself, in a few dozen lines, instead of through the MCP SDK's client, which brought a web framework with it. The server spends 145 ms of CPU before its first answer where 1.1.1 spent 158, and answers in 104 ms of wall time instead of 108 (median of 21 runs, taking turns on one Mac).
+- **1.1.1's spellings still answer.** Several refs can be typed as bare words, `photo-info uuid1 uuid2 uuid3`; `--uuid`, `--file` and `--ref` mean `--refs` where a tool has no `ref` of its own; and `which` reads the same synonyms, so "save my photos to disk" still finds `export-originals`.
+- **Exit codes as before**, with 1 now meaning an unexpected error: an engine that cannot start is 10, macOS refusing access 4, refs that resolve to nothing 3, a request over a cap 2, and anything else the engine reports 5.
+- **`install <client>`** adds the server to Claude Code, Codex, Claude Desktop, Cursor, VS Code or Gemini CLI in each one's own format, and `--http` serves MCP over HTTP on 127.0.0.1, needing `APPLE_PHOTOS_HTTP_TOKEN` anywhere else.
+- **Docs.** The README's costs are measured against 1.1.1, its settings table lists every variable, the contents links to sections 6, 7 and 10 work on GitHub, and `SKILL.md` lists `which` and exit code 1 and costs 2,490 tokens in Claude Code instead of 2,510.
+
+What did not get better: over MCP, Codex's median rose from 39,915 input tokens to 39,959. Codex first asks with only the tools' names, identical for both versions, and then prints the tools: 2.0.0's printout was 53 characters shorter in every run. The medians differ by the length of the model's own replies.
+
+### Upgrading
+
+Node 22 or later is required; 1.1.1 ran on 20. Over MCP, expect an approval prompt or form before an archive; a headless agent that should archive with `confirm: true` alone needs `APPLE_PHOTOS_CONFIRM=model`. `apple-photos-cli doctor` prints one line per check, with `--json` for JSON, where 1.1.1 printed the engine's report; `apple-photos-cli check-setup` prints that report. An error in the terminal is one JSON object with `error`, Slipway's `code` and often a `hint`; over MCP an error is that JSON. The server now tells clients its name is `apple-photos`, where 1.1.1 said `apple-photos-mcp`. A missing argument's error is 15 tokens longer, for its code and a hint.
 
 ## 1.1.1, 2026-10-04
 

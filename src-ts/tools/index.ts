@@ -7,9 +7,9 @@
  * rather than quietly going missing from the CLI and from HQ.
  */
 
-import { z } from "zod";
+import { z } from "@thenavidm/slipway";
 
-import { confirmArg, defineTool, type AnyToolSpec } from "./kit.js";
+import { confirmArg, defineTool, slipwayTools, type AnyToolSpec } from "./kit.js";
 
 const REFS = z
   .array(z.string())
@@ -92,6 +92,8 @@ export const readTools = [
 
   defineTool({
     name: "doctor",
+    // The CLI's own `doctor` runs these same checks, so the tool answers there as check-setup.
+    command: "check-setup",
     title: "Check the setup",
     description:
       "Check that the Photos library is reachable, the engine starts, and this Mac has granted the permissions needed. Run it first when something fails, because a permissions problem and an empty library look identical from a tool call.",
@@ -191,3 +193,6 @@ export const writeTools = [
 ];
 
 export const ALL_TOOLS: AnyToolSpec[] = [...readTools, ...writeTools] as AnyToolSpec[];
+
+/** The same tools as Slipway serves them over MCP and as commands. */
+export const TOOLS = slipwayTools(ALL_TOOLS);

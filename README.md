@@ -12,7 +12,7 @@ Apple Photos MCP server and CLI for Claude Code, Codex and AI agents. 13 tools t
 
 Give any AI agent real access to your own Apple Photos library, so it can find, see, organise and export your photos instead of guessing.
 
-Built and maintained by [Navid Moazzez](https://navid.me?utm_source=github&utm_medium=referral&utm_campaign=apple-photos-mcp-cli&utm_content=readme).
+Built and maintained by [Navid Moazzez](https://navid.me?utm_source=github&utm_medium=referral&utm_campaign=apple-photos-mcp-cli&utm_content=readme). Built on [Slipway](https://github.com/thenavidm/slipway), which turns one definition of each tool into the MCP server and the CLI.
 
 <img src="https://cdn.navid.media/repos/apple-photos-mcp.gif?v=1" alt="Claude Code using the Apple Photos MCP server" width="520">
 
@@ -31,6 +31,7 @@ apple-photos-cli library-stats --json               # real totals, one call
 apple-photos-cli search-photos "sunset" --limit 5 --screenshots exclude
 apple-photos-cli photo-info --refs IMG_2073.MOV
 apple-photos-cli export-originals --refs <uuid> --directory ./out
+apple-photos-cli which save my photos to disk       # find the command for a task
 apple-photos-cli <command> --help                   # what any command takes
 ```
 
@@ -76,10 +77,10 @@ the tool name with dashes.
 | Title and description | `apple-photos-cli set-photo-title` / `set-photo-description` | `set_photo_title` / `set_photo_description` |
 | Keywords and albums | `apple-photos-cli add-keywords` / `add-to-album` | `add_keywords` / `add_to_album` |
 | Move into an archive album | `apple-photos-cli archive-photos` | `archive_photos` |
-| Check the setup | `apple-photos-cli doctor` | `doctor` |
+| Check the setup | `apple-photos-cli doctor`, or `check-setup` for the engine's report alone | `doctor` |
 | Find the right command | `apple-photos-cli which "..."` | not a tool |
 
-All 13 with their arguments are in [section 6](#6-tools-).
+All 13 with their arguments are in [section 6](#6-tools-%EF%B8%8F).
 
 ## Output and exit codes
 
@@ -91,10 +92,12 @@ Results on stdout, errors on stderr as JSON, so one parse handles both.
 | `--json` | JSON, always |
 | `--compact` | the same JSON on one line |
 | `--select a,b.c` | keep only these fields |
+| `--agent` | one-line JSON, no prompts and no color, for a script or an agent |
 
 | Code | Means |
 |---|---|
 | `0` | it worked |
+| `1` | something unexpected went wrong |
 | `2` | it was typed wrong, or a write was refused: a missing flag, a bad value, no `--confirm`, or read only |
 | `3` | a photo or album wasn't found |
 | `4` | macOS refused access: Full Disk Access, or Automation for Photos |
@@ -108,10 +111,10 @@ difference is when the model pays for them. Measured in Claude Code:
 
 | | MCP server | CLI |
 |---|---|---|
-| Every message, with every tool loaded | 3,800 tokens | nothing |
-| Every message, Claude Code's default | 660 tokens | nothing |
+| Every message, with every tool loaded | 3,400 tokens | nothing |
+| Every message, Claude Code's default | 650 tokens | nothing |
 | When Apple Photos comes up | nothing more, or the tools it picks | 2,500 tokens for `SKILL.md`, once |
-| 20 messages with Apple Photos in 1, every tool loaded | 77,000 tokens | 2,500 tokens |
+| 20 messages with Apple Photos in 1, every tool loaded | 68,000 tokens | 2,500 tokens |
 
 Claude Code's [tool search](https://code.claude.com/docs/en/mcp#scale-with-mcp-tool-search)
 is on by default: it sends only the tool names and the server instructions,
@@ -124,11 +127,28 @@ To spend less, turn the server off when you are not using it, which in Claude
 Code is the `/mcp` panel. `APPLE_PHOTOS_READ_ONLY=1` takes the 6 write tools off the list, leaving 7.
 Or install the CLI and add the server on the days it earns its place.
 
-Measured on 2026-09-27 with Claude Code 2.1.257 on Claude Opus 5: one
-short prompt with and without the server connected, once with
-`ENABLE_TOOL_SEARCH=false` and once with the default, the difference read
-from the API's own usage figures. `SKILL.md` was measured the same way. Other
-apps and models count tokens a little differently.
+Measured on 2026-10-05 against 1.1.1, with Claude Code 2.1.286 on Claude Opus
+5.5 (one short prompt with and without the server connected, once with
+`ENABLE_TOOL_SEARCH=false` and once with the default, the difference read from
+the API's own usage figures; `SKILL.md` the same way) and Codex 0.159.3 on
+gpt-6.1-sol, with an empty home folder and an engine that could not start, so
+nothing read the library:
+
+| Cost | 1.1.1 | 2.0.0 |
+| --- | --- | --- |
+| Claude Code, every tool loaded, every message | 3,843 | 3,402 |
+| Claude Code's default, tool search, every message | 656 | 654 |
+| `SKILL.md`, read once | 2,510 | 2,490 |
+| Codex over the CLI, one task, median of five | 191,767 | 53,232 |
+| Codex over MCP, the same task, median of five | 39,915 | 39,959 |
+
+The task was "find the command that exports original photo files to a folder
+on this Mac, and the flags it requires". In 1.1.1, `<command> --help` printed
+the general help, so every run tried seven to ten commands before it found the
+flags; every 2.0.0 run read the general help and the command's own: two. Over
+MCP the server's printout was shorter in every 2.0.0 run, and the medians
+differ by the model's own replies. Other apps and models count tokens a little
+differently, and tool-list characters divided by four are not API usage.
 
 ## Contents
 
@@ -141,11 +161,11 @@ apps and models count tokens a little differently.
 | 3 | [Setup](#3-setup-) | One permission, once |
 | 4 | [Connect your client](#4-connect-your-client-) | Every client, copy and paste |
 | 5 | [Check it worked](#5-check-it-worked-) | `doctor` |
-| 6 | [Tools](#6-tools-) | All 13 |
-| 7 | [Working safely](#7-working-safely-) | What asks, what does not |
+| 6 | [Tools](#6-tools-%EF%B8%8F) | All 13 |
+| 7 | [Working safely](#7-working-safely-%EF%B8%8F) | What asks, what does not |
 | 8 | [What Apple Photos actually does](#8-what-apple-photos-actually-does-) | The things that surprise people |
 | 9 | [Your data](#9-your-data-) | What is stored, and where |
-| 10 | [Configuration](#10-configuration-) | Every setting |
+| 10 | [Configuration](#10-configuration-%EF%B8%8F) | Every setting |
 | 11 | [Troubleshooting](#11-troubleshooting-) | When something breaks |
 | 12 | [FAQ](#12-faq-) | Start here if you are new |
 
@@ -345,13 +365,11 @@ Or just ask your agent: **"run doctor on apple photos"**.
 
 Healthy output includes a line like:
 
-```json
-{
-  "check": "index",
-  "ok": true,
-  "detail": "37129 assets indexed (35983 with ML labels, 10807 with readable text)"
-}
 ```
+  ✓ index          37129 assets indexed (35983 with ML labels, 10807 with readable text)
+```
+
+`--json` prints the same checks as JSON, and `apple-photos-cli check-setup` prints the engine's own report.
 
 The two things that actually fail:
 
@@ -376,7 +394,7 @@ The two things that actually fail:
 | Tool | What it does |
 |---|---|
 | `library_stats` | Totals, albums, named people, how much is iCloud only |
-| `doctor` | Diagnose setup |
+| `doctor` | Diagnose setup. On the CLI it is `check-setup`, because `doctor` there runs these checks with the CLI's own |
 
 **Organizing**
 
@@ -387,7 +405,7 @@ The two things that actually fail:
 | `add_keywords` | Add keywords, keeping existing ones |
 | `set_photo_title` | Set one item's title |
 | `set_photo_description` | Set one item's caption |
-| `archive_photos` | Move to an archive album. Needs `confirm: true` |
+| `archive_photos` | Move to an archive album. Needs confirming |
 
 **Getting files out**
 
@@ -401,11 +419,11 @@ Organizing works out of the box, because that is the point of the tool. Three th
 
 **Nothing can delete a photo.** macOS does not expose scripted deletion to any application, and this server does not try to route around that. `archive_photos` moves items into an album so they leave your main view, and you empty that album yourself.
 
-**`archive_photos` is the only tool that asks.** It needs `confirm: true`. Everything else it can do is one click to undo in Photos, and requiring confirmation on all of them would just teach a model to pass `confirm` reflexively, including on the one that matters.
+**`archive_photos` is the only tool that asks.** Over MCP a person approves it: Claude Code (2.1.246 and later) shows its own prompt, and an app that can show forms asks with an approval form whose one box starts unticked. Where an app can do neither, the model's `confirm: true` still counts, and `APPLE_PHOTOS_CONFIRM=model` makes it enough everywhere; in a terminal it is `--confirm`, which `--agent` never adds. `APPLE_PHOTOS_ALLOW_DESTRUCTIVE=0` refuses it, confirmed or not. Everything else it can do is one click to undo in Photos, and requiring confirmation on all of them would just teach a model to pass `confirm` reflexively, including on the one that matters.
 
 **`APPLE_PHOTOS_READ_ONLY=1` removes every write tool.** They vanish from the tool list rather than erroring when called, because a model cannot call a tool it cannot see. This is the right setting for an agent working unattended.
 
-`APPLE_PHOTOS_AUDIT_LOG=~/.apple-photos-mcp/writes.jsonl` records one JSON line per attempted write, allowed and blocked alike.
+`APPLE_PHOTOS_AUDIT_LOG=~/.apple-photos-mcp/writes.jsonl` records one JSON line per attempted write, allowed and blocked alike, with who approved it, then whether it was done or failed.
 
 Every tool carries MCP annotations, so a client can decide what to auto-approve: reads are marked read-only, organizing is marked non-destructive, and `archive_photos` is marked destructive. Nothing is marked open-world, because nothing here leaves your machine.
 
@@ -449,7 +467,13 @@ Every setting is an environment variable, set in your client's `env` block.
 | Variable | Default | What it does |
 |---|---|---|
 | `APPLE_PHOTOS_READ_ONLY` | off | Removes every write tool from the tool list |
+| `APPLE_PHOTOS_ALLOW_DESTRUCTIVE` | on | `0` refuses `archive_photos`, confirmed or not |
+| `APPLE_PHOTOS_CONFIRM` | `human` | `model` lets `confirm: true` alone approve an archive over MCP, for an agent with no person to ask |
 | `APPLE_PHOTOS_AUDIT_LOG` | off | Path for one JSON line per attempted write |
+| `APPLE_PHOTOS_PYTHON` | `uv` | A Python that has osxphotos and photoscript; uv fetches them on demand when unset |
+| `APPLE_PHOTOS_PYTHONPATH` | the copy in this package | Where the engine's package lives |
+| `APPLE_PHOTOS_STARTUP_TIMEOUT_MS` | `300000` | How long the engine may take to start, since a cold uv run builds pyobjc |
+| `APPLE_PHOTOS_REQUEST_TIMEOUT_MS` | `300000` | How long one call may take |
 | `APPLE_PHOTOS_LIBRARY` | last opened | Path to a specific `.photoslibrary` |
 | `APPLE_PHOTOS_EXPORT_DIR` | `~/Downloads/Photos Exports` | Default export folder |
 | `APPLE_PHOTOS_PREVIEW_DIR` | `~/.apple-photos-mcp/previews` | Where previews are cached |
@@ -457,6 +481,11 @@ Every setting is an environment variable, set in your client's `env` block.
 | `APPLE_PHOTOS_PREVIEW_MAX` | `8` | Most items rendered per `look_at_photos` call |
 | `APPLE_PHOTOS_WRITE_BATCH_MAX` | `100` | Most items a single write may touch |
 | `APPLE_PHOTOS_ARCHIVE_ALBUM` | `Archived by Claude` | Album `archive_photos` moves items into |
+| `APPLE_PHOTOS_SURFACE` | `full` | `search` lists three tools that find, describe and run the rest |
+| `APPLE_PHOTOS_TOOL_TIMEOUT_MS` | none | Give up on any tool after this long |
+| `APPLE_PHOTOS_HTTP_PORT`, `APPLE_PHOTOS_HTTP_HOST`, `APPLE_PHOTOS_HTTP_TOKEN` | 8787, 127.0.0.1, none | For `--http`. Any host but 127.0.0.1 needs the bearer token |
+| `APPLE_PHOTOS_HTTP_ALLOWED_ORIGINS` | none | Comma-separated browser origins allowed to call `--http`; a page from any other site is refused |
+| `APPLE_PHOTOS_DEBUG` | `0` | `1` prints debug lines on stderr |
 
 ## 11. Troubleshooting 🔧
 
@@ -607,7 +636,9 @@ If this is useful, star the repo and come say hi on [X](https://x.com/thenavidm)
 
 | Package | License | Why |
 |---|---|---|
-| [mcp](https://github.com/modelcontextprotocol/python-sdk) | MIT | The MCP protocol implementation |
+| [Slipway](https://github.com/thenavidm/slipway) | Apache-2.0 | The MCP server and the CLI from one definition of each tool |
+| [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk) | Apache-2.0 | The MCP protocol and its transports, through Slipway |
+| [mcp](https://github.com/modelcontextprotocol/python-sdk) | MIT | The MCP protocol for the Python engine |
 | [osxphotos](https://github.com/RhetTbull/osxphotos) | MIT | Reads the Photos library database and Apple's on-device ML metadata |
 | [photoscript](https://github.com/RhetTbull/photoscript) | MIT | Drives Photos.app for writes |
 

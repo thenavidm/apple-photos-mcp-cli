@@ -13,16 +13,15 @@
  * from the same tool array as the MCP server, and a static `ALL_TOOLS` that the
  * HQ connector can import so the hosted surface cannot drift from this one.
  *
- * Calls are proxied to the Python MCP server over stdio using the official
- * client, so the Python needs no changes and there is one implementation of
- * every tool.
+ * Calls are proxied to the Python MCP server over stdio, through the small
+ * client in engine.ts, so the Python needs no changes and there is one
+ * implementation of every tool.
  */
 
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-
 import type { Config } from "./config.js";
+import { StdioEngine } from "./engine.js";
 import { BridgeError } from "./errors.js";
+import { VERSION } from "./version.js";
 
 /** A content part as the MCP protocol carries it: text, image, or anything later. */
 export type ContentPart = { type: string; text?: string; data?: string; mimeType?: string };
@@ -37,8 +36,8 @@ export type BridgeResult = {
 
 export class PythonBridge {
   private readonly config: Config;
-  private client?: Client;
-  private starting?: Promise<Client>;
+  private engine?: StdioEngine;
+  private starting?: Promise<StdioEngine>;
   /** The tail of the engine's stderr, so a failure can say what actually went wrong. */
   private stderrTail = "";
 
@@ -46,43 +45,34 @@ export class PythonBridge {
     this.config = config;
   }
 
-  private async connect(): Promise<Client> {
-    if (this.client) return this.client;
+  private async connect(): Promise<StdioEngine> {
+    if (this.engine) return this.engine;
     if (this.starting) return this.starting;
 
     this.starting = (async () => {
-      const client = new Client({ name: "apple-photos-cli", version: "1.0.0" }, { capabilities: {} });
-
-      const transport = new StdioClientTransport({
+      const engine: StdioEngine = new StdioEngine({
         command: this.config.pythonCommand,
         args: this.config.pythonArgs,
-        env: { ...process.env, ...this.config.pythonEnv } as Record<string, string>,
-        stderr: "pipe",
+        env: this.config.pythonEnv,
+        clientInfo: { name: "apple-photos-cli", version: VERSION },
+        // Drained as it arrives: osxphotos is chatty on a large library, and an
+        // unread pipe fills and blocks the engine. Keeping the tail also means a
+        // failure can name the actual cause, a missing module or a Full Disk
+        // Access denial, instead of a boilerplate "install uv".
+        onStderr: (chunk) => {
+          this.stderrTail = (this.stderrTail + chunk).slice(-4000);
+        },
+        // A dead engine must not stay cached, or one crash breaks every later
+        // call for the life of the process.
+        onClose: () => {
+          if (this.engine === engine) this.engine = undefined;
+        },
       });
-
-      // Drain stderr immediately. The SDK pipes it into a PassThrough with a
-      // 16KB buffer; with no reader that fills, the OS pipe fills behind it,
-      // and the child blocks writing to stderr. osxphotos is chatty on a large
-      // library, so this is a real hang, not a theoretical one. Keeping the
-      // tail also means a failure can name the actual cause — a missing module,
-      // a Full Disk Access denial — instead of a boilerplate "install uv".
-      transport.stderr?.on("data", (chunk: Buffer) => {
-        this.stderrTail = (this.stderrTail + chunk.toString()).slice(-4000);
-      });
-
-      // A dead client must not stay cached, or one engine crash bricks every
-      // later call for the life of the process with "Connection closed".
-      const forget = (): void => {
-        if (this.client === client) this.client = undefined;
-      };
-      client.onclose = forget;
-      client.onerror = forget;
 
       try {
-        // The default is 60s, and a cold `uv` run builds pyobjc, which takes
-        // longer than that on a fresh cache. Failing there reported "install
-        // uv" at the one moment uv was working correctly.
-        await client.connect(transport, { timeout: this.config.startupTimeoutMs });
+        // A cold `uv` run builds pyobjc, which takes longer than a minute on a
+        // fresh cache, so the wait is the configured startup timeout.
+        await engine.start(this.config.startupTimeoutMs);
       } catch (error) {
         throw new BridgeError(
           `Could not start the Photos engine with \`${this.config.pythonCommand} ${this.config.pythonArgs.join(" ")}\`. ` +
@@ -91,8 +81,8 @@ export class PythonBridge {
         );
       }
 
-      this.client = client;
-      return client;
+      this.engine = engine;
+      return engine;
     })();
 
     try {
@@ -106,19 +96,18 @@ export class PythonBridge {
    * Call one Python tool and return every content part.
    *
    * `timeoutMs` matters: exporting originals pulls them out of iCloud first and
-   * rendering previews is not quick either, so the protocol default of 60s
-   * cancels work the engine is still doing.
+   * rendering previews is not quick either, so a short default would cancel
+   * work the engine is still doing.
    */
   async call(tool: string, args: Record<string, unknown>, timeoutMs?: number): Promise<BridgeResult> {
-    const client = await this.connect();
+    const engine = await this.connect();
 
     let result: { content?: ContentPart[]; isError?: boolean };
     try {
-      result = (await client.callTool(
-        { name: tool, arguments: args },
-        undefined,
-        { timeout: timeoutMs ?? this.config.requestTimeoutMs },
-      )) as { content?: ContentPart[]; isError?: boolean };
+      result = (await engine.request("tools/call", { name: tool, arguments: args }, timeoutMs ?? this.config.requestTimeoutMs)) as {
+        content?: ContentPart[];
+        isError?: boolean;
+      };
     } catch (error) {
       throw new BridgeError(
         `The Photos engine failed while running ${tool}.`,
@@ -126,26 +115,26 @@ export class PythonBridge {
       );
     }
 
-    const content = result.content ?? [];
+    const content = result?.content ?? [];
     const text = content
       .filter((part) => part.type === "text" && typeof part.text === "string")
       .map((part) => part.text as string)
       .join("\n");
 
-    return { content, text, isError: result.isError === true };
+    return { content, text, isError: result?.isError === true };
   }
 
   /** What the Python server says it offers, for checking the two lists agree. */
   async listTools(): Promise<string[]> {
-    const client = await this.connect();
-    const { tools } = await client.listTools();
+    const engine = await this.connect();
+    const { tools } = (await engine.request("tools/list", {}, this.config.requestTimeoutMs)) as { tools: Array<{ name: string }> };
     return tools.map((tool) => tool.name);
   }
 
   async close(): Promise<void> {
     this.starting = undefined;
-    const client = this.client;
-    this.client = undefined;
-    await client?.close().catch(() => undefined);
+    const engine = this.engine;
+    this.engine = undefined;
+    await engine?.close().catch(() => undefined);
   }
 }
